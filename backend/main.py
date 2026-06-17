@@ -23,6 +23,7 @@ vectorizer = joblib.load("vectorizer.pkl")
 
 GOOGLE_FACTCHECK_API_KEY = os.getenv("GOOGLE_FACTCHECK_API_KEY")
 NEWSAPI_KEY = os.getenv("NEWSAPI_KEY")
+print("NEWSAPI KEY:", NEWSAPI_KEY)
 
 factcheck_cache = {}
 newsapi_cache = {}
@@ -60,6 +61,10 @@ MOCK_KNOWLEDGE_GRAPH: Dict[str, Dict[str, str]] = {
 
     # === SPACE & SCIENCE ===
     "nasa": {"verified_fact": "NASA is the US space agency responsible for space exploration.", "credibility_score": "High"},
+    "artemis ii": {
+    "verified_fact": "Artemis II is NASA's first crewed Artemis mission around the Moon.",
+    "credibility_score": "High"
+},
     "isro": {"verified_fact": "ISRO landed Chandrayaan-3 on the Moon's south pole in 2023.", "credibility_score": "High"},
     "spacex": {"verified_fact": "SpaceX is a private aerospace company founded by Elon Musk in 2002.", "credibility_score": "High"},
     "esa": {"verified_fact": "ESA is the European Space Agency coordinating Europe's space activities.", "credibility_score": "High"},
@@ -192,7 +197,10 @@ async def claim_extraction_agent(text: str):
     entities = []
 
     for entity in MOCK_KNOWLEDGE_GRAPH.keys():
-        if entity in text_lower:        # ← ONE LINE FIX
+
+        pattern = r"\b" + re.escape(entity) + r"\b"
+
+        if re.search(pattern, text_lower):
             entities.append(entity)
 
     print("[Claim Agent] Found:", entities)
@@ -451,6 +459,9 @@ async def ml_classification_agent(text):
 
     probability = model.predict_proba(vector)[0]
 
+    print("Raw Prediction:", prediction)
+    print("Probabilities:", probability)
+
     confidence = float(max(probability))
 
     verdict = "REAL" if prediction == 1 else "FAKE"
@@ -484,12 +495,15 @@ async def cross_verification_agent(
 
     if evidence:
 
+        confidence = min(0.80 + (len(evidence) * 0.05), 0.95)
+
         return {
-            "verdict": "REAL",
-            "confidence_score": 0.94,
-            "explanation":
-                "Evidence found in Knowledge Graph."
+        "verdict": "REAL",
+        "confidence_score": round(confidence, 2),
+        "explanation":
+            "Evidence found in Knowledge Graph."
         }
+        
     
     if newsapi.get("found") and newsapi.get("total_sources", 0) >= 3:
         source_count = newsapi["total_sources"]
@@ -612,7 +626,7 @@ async def analyze_news(input_data: NewsInput):
 
         elif consensus["verdict"] == "REAL":
             final_verdict = "REAL"
-            confidence = max(consensus["confidence_score"], ml_result["confidence"])
+            confidence = consensus["confidence_score"]
             explanation = consensus["explanation"]
 
         else:
@@ -620,38 +634,6 @@ async def analyze_news(input_data: NewsInput):
             confidence = ml_result["confidence"]
             explanation = "No verified evidence found. Using ML model prediction."
 
-        if consensus["verdict"] == "FAKE":
-
-            final_verdict = "FAKE"
-
-            confidence = max(
-                consensus["confidence_score"],
-                ml_result["confidence"]
-            )
-
-            explanation = consensus["explanation"]
-
-        elif consensus["verdict"] == "REAL":
-
-            final_verdict = "REAL"
-
-            confidence = max(
-                consensus["confidence_score"],
-                ml_result["confidence"]
-            )
-
-            explanation = consensus["explanation"]
-
-        else:
-
-            final_verdict = ml_result["verdict"]
-
-            confidence = ml_result["confidence"]
-
-            explanation = (
-                "No verified evidence found. "
-                "Using ML model prediction."
-            )
         
 
         # ----------------------------------

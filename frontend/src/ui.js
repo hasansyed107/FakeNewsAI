@@ -109,10 +109,55 @@ export const UIRenderer = {
     if (!vPanel || !mPanel || !grid) return;
 
     const finalVerdict = data.final_verdict || {};
-    const contributions = data.agent_contributions || {};
+    const raw = data.agent_contributions || {};
+
+const contributions = {
+
+  claim_extraction: {
+    entities:
+      raw.claim_extraction_agent?.identified_entities || [],
+    claims: []
+  },
+
+  linguistic_analysis: {
+    sensationalism_score:
+      Math.round(
+        (raw.linguistic_agent?.linguistic_integrity_score || 0) * 100
+      ),
+
+    clickbait_words:
+      raw.linguistic_agent?.flags || []
+  },
+
+  source_credibility: {
+    sources:
+      raw.source_credibility_agent || {}
+  },
+
+  evidence_retrieval: {
+    evidence_found:
+      (raw.knowledge_graph_evidence || []).length > 0,
+
+    evidence_text:
+      raw.knowledge_graph_evidence?.[0] || null
+  },
+
+  ml_classification: {
+    prediction:
+      raw.ml_classifier?.prediction || "UNVERIFIED",
+
+    probability:
+      raw.ml_classifier?.confidence || 0
+  },
+
+  cross_verification: {
+    rule_triggered:
+      data.final_verdict?.explanation || "None"
+  }
+};
 
     const verdictType = finalVerdict.verdict || 'UNVERIFIED';
-    const confidenceScore = finalVerdict.confidence_score || 0;
+    const confidenceScore =Math.round((finalVerdict.confidence_score || 0) * 100);
     const explanation = finalVerdict.explanation || 'No summary compilation logged.';
 
     // Setup verdict colors
